@@ -1,0 +1,6 @@
+
+main
+**.o
+**.a
+**.so
+__pycache__
