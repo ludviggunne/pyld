@@ -14,6 +14,7 @@ _static_ext = ".a"
 _do_print_commands = True
 
 _color_codes: dict[str, int] = {
+    "reset":   0,
     "grey":   90,
     "red":    91,
     "green":  92,
@@ -66,9 +67,15 @@ def _print_elapsed_time(t: float):
     
     print(msg)
 
+def _output_str(msg: str, indent: int = 0, color: str = "reset") -> str:
+    return "\t" * indent + _color_str(color) + msg + _color_str("reset")
+
 def _print_commands(indent: int, args: str):
     if _do_print_commands:
-        print(_color_str("grey") + "\t" * (indent + 1) + " ".join(args) + _color_str("white"))
+        print(_output_str(" ".join(args), indent, "grey"))
+
+def _error(msg: str, indent: int = 0):
+    assert False, _output_str(str, indent, "red")
 
 class TargetType(enum.Enum):
     EXECUTABLE       = 0
@@ -149,27 +156,25 @@ class Target:
         for dep_name in self.deps:
             if dep_name in _targets:
                 dep = _targets[dep_name]
-                print("\t" * indent + f"Checking dependency {dep_name}...")
+                print(_output_str(f"Checking dependency {dep_name}...", indent))
                 dep_rebuild = dep._opt_build(force, target_timestamp, indent + 1)
                 rebuild |= dep_rebuild
-                if dep_rebuild:
-                    print(f"Built dependency {dep_name}") 
 
             elif dep_name in _external_dependencies:
                 pass
 
             else:
-                assert False, "\t" * indent + f"Unknown Dependency: {dep_name}"
+                _error(f"Unknown Dependency: {dep_name}", indent)
 
         # Update Object Files
         for source in self.sources:
             obj = _change_extension(source, _object_ext)
             if not os.path.exists(source):
-                assert False, f"Could not find source file {source}"
+                _error(f"Could not find source file {source}")
 
             if _cmp_timestamp(_get_opt_mod_time(source), target_timestamp) or not os.path.exists(obj) or force:
                 rebuild = True
-                print("\t" * indent + f"Compiling source file {source}")
+                print(_output_str(f"Compiling source file {source}", indent))
                 args: list[str] = []
                 args.append(c_compiler)
                 if self.type == TargetType.DYNAMIC_LIB:
@@ -183,10 +188,10 @@ class Target:
                 _print_commands(indent, args)
                 subprocess.run(args)
             else:
-                print("\t" * indent + f"Source file {source} is up to date")
+                print(_output_str(f"Source file {source} is up to date", indent))
         
         if rebuild or force:
-            print("\t" * indent + f"Building target {self.name}...")
+            print(_output_str(f"Building target {self.name}...", indent))
             args: list[str] = []
             args.append(c_compiler)
             args += self.flags
@@ -199,16 +204,16 @@ class Target:
                     dep: Target = _targets[dep_name]
                     match dep.type:
                         case TargetType.EXECUTABLE:
-                            assert False, "Can't have executable as a dependency"
+                            _error("Can't have executable as dependency", indent)
 
                         case TargetType.STATIC_LIB:
                             objs.append(dep.get_out_path())
 
                         case TargetType.DYNAMIC_LIB:
-                            assert False, "Dynamic Lib target as dependency is not supported yet"
+                            _error("Using TargetType.DYNAMIC_LIB as dependency is not supported yet", indent)
 
                         case _:
-                            assert False, f"Unknown target type {dep.type}"
+                            _error("Unknown target type {dep.type}", indent)
                         
                 elif dep_name in _external_dependencies:
                     dep: ExtDep = _external_dependencies[dep_name]
@@ -220,9 +225,9 @@ class Target:
                             links.append(f"-l{dep.name}")
 
                         case _:
-                            assert False, f"Unknown external dependency type {dep.type}"
+                            _error(f"Unknown external dependency type {dep.type}", indent)
                 else:
-                    assert False, f"Unknown dependency: {dep_name}"
+                    _error(f"Unknown dependency: {dep_name}")
 
             args += objs
 
@@ -247,8 +252,8 @@ class Target:
 
             _print_commands(indent, args)
             subprocess.run(args)
-            print("\t" * indent + _color_str("green") + "Completed!" + _color_str("white"))
+            print(_output_str("Completed!", indent, "green"))
         else:
-            print("\t" * indent + f"Target {self.name} is up to date")
+            print(_output_str(f"Target {self.name} is up to date", indent))
         
         return rebuild
