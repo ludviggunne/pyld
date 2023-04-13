@@ -111,6 +111,9 @@ class Target:
     def add_source_files(self, sources: list[str]):
         self.sources += sources
 
+    def add_flags(self, flags: list[str]):
+        self.flags += flags
+
     def add_include_directories(self, dirs: list[str]):
         self.incdirs += dirs
 
